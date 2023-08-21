@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import yaml
 from yaml.loader import SafeLoader
 
+
 @dataclass
 class Metadata:
     categories: []
@@ -169,6 +170,7 @@ class Package:
             self.from_source = package_data["from_source"]
             self.source = None
 
+
 class XBStrapDistro:
     class SafeLineLoader(SafeLoader):
         def construct_mapping(self, node, deep=False):
@@ -188,7 +190,6 @@ class XBStrapDistro:
     def global_sources(self):
         return self.__global_sources
 
-
     @property
     def packages(self):
         return self.__packages
@@ -199,6 +200,12 @@ class XBStrapDistro:
                 return source
         return None
 
+    def find_package_by_name(self, name):
+        for package in self.__packages:
+            if package.name == name:
+                return package
+        return None
+
     def import_global_sources(self, file_path):
         data = None
         with open(os.path.join(self.__repo_dir, file_path), "r") as stream:
@@ -207,8 +214,6 @@ class XBStrapDistro:
             except yaml.YAMLError as exc:
                 print(exc)
                 return
-
-
 
         if "imports" in data:
             for file_import in data["imports"]:
