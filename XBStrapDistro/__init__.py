@@ -194,13 +194,13 @@ class XBStrapDistro:
     def packages(self):
         return self.__packages
 
-    def find_source_by_name(self, name):
+    def find_source_by_name(self, name) -> Source | None:
         for source in self.__global_sources:
             if source.name == name:
                 return source
         return None
 
-    def find_package_by_name(self, name):
+    def find_package_by_name(self, name) -> Package | None:
         for package in self.__packages:
             if package.name == name:
                 return package
@@ -244,7 +244,7 @@ class XBStrapDistro:
                 assert package.source is not None
                 self.__packages.append(package)
 
-    def get_package_names(self):
+    def get_package_names(self) -> list[str]:
         ret: list[str] = []
         for package in self.__packages:
             ret.append(package.name)
