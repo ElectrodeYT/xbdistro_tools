@@ -107,14 +107,14 @@ def update_package_in_database(c: sqlite3.Cursor, package: Package, change_repor
     # Check if row exists
     c.execute("SELECT EXISTS (SELECT 1 FROM packages WHERE name='{}' LIMIT 1)".format(package.name))
     if not c.fetchone()[0]:
-        c.execute("INSERT OR REPLACE INTO packages(name, source_name, revision) VALUES('{}', '{}', {})"
-                  .format(package.name, package.source.name, package.revision))
+        c.execute("INSERT OR REPLACE INTO packages(name, source_name, revision, maintainer) VALUES('{}', '{}', {}, '{}')"
+                  .format(package.name, package.source.name, package.revision, package.metadata.maintainer))
         change_report.packages.append(package)
         change_report.new_packages.append(package)
     else:
         c.execute(
-            "UPDATE packages SET source_name='{}', revision='{}' WHERE name='{}' AND NOT (source_name='{}' AND revision='{}')"
-            .format(package.source.name, package.revision, package.name, package.source.name, package.revision))
+            "UPDATE packages SET source_name='{}', revision='{}', maintainer='{}' WHERE name='{}' AND NOT (source_name='{}' AND revision='{}' AND maintainer='{}')"
+            .format(package.source.name, package.revision, package.metadata.maintainer, package.name, package.source.name, package.revision, package.metadata.maintainer))
         if c.rowcount == 1:
             change_report.packages.append(package)
             change_report.package_change.append(package.name)
@@ -130,7 +130,7 @@ class XBStrapSQLite:
 
     def __initialize_database(self):
         c = self.database.cursor()
-        c.execute("CREATE TABLE IF NOT EXISTS packages(name CHAR PRIMARY KEY, source_name CHAR, revision INT)")
+        c.execute("CREATE TABLE IF NOT EXISTS packages(name CHAR PRIMARY KEY, source_name CHAR, revision INT, maintainer CHAR)")
         c.execute("CREATE TABLE IF NOT EXISTS package_dependencies(package_name CHAR, package_depend CHAR)")
         c.execute(
             "CREATE TABLE IF NOT EXISTS source_dependencies(source_name CHAR, source_depend CHAR, is_recursive BOOL)")
@@ -164,6 +164,26 @@ class XBStrapSQLite:
                 update_source_dependencies(c, package.source, change_report)
         self.database.commit()
 
+    # We do not store any changes about this in the change report, as these may change often
+    # We also just truncate the table first, as its not worth trying to optimize whether to insert something or not
+    def __update_filelines_in_database(self):
+        c = self.database.cursor()
+        c.execute("DELETE FROM file_lines")
+        for package in self.distro.packages:
+            c.execute("INSERT INTO file_lines(package_name, entry, file, line) VALUES(?, ?, ?, ?)",
+                      [package.name, "main_def", package.file, package.line])
+            # The metadata can only be defined inline, so we use the file that the package is defined in
+            c.execute("INSERT INTO file_lines(package_name, entry, file, line) VALUES(?, ?, ?, ?)",
+                      [package.name, "meta_def", package.file, package.metadata.line])
+            # We reuse the package_name for the source as well
+            # Check if row exists
+            c.execute("SELECT EXISTS (SELECT 1 FROM file_lines WHERE package_name = ? AND entry='source_def' LIMIT 1)",
+                      ["__source__" + package.source.name])
+            if not c.fetchone()[0]:
+                c.execute("REPLACE INTO file_lines(package_name, entry, file, line) VALUES(?, ?, ?, ?)",
+                          ["__source__" + package.source.name, "source_def", package.source.file, package.source.line])
+        self.database.commit()
+
     def update_database(self):
         change_report = XBStrapSQLiteChangeReport()
         print("--- Beginning database update ---")
@@ -175,6 +195,8 @@ class XBStrapSQLite:
         self.__update_package_dependencies_in_database(change_report)
         print("Updating source dependencies")
         self.__update_source_dependencies_in_database(change_report)
+        print("Updating file lines")
+        self.__update_filelines_in_database()
         print("--- Done doing database update ---")
         return change_report
 
