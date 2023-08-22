@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='XBDistroTools',
-    version='0.1.0',
+    version='0.2.1',
     packages=['XBStrapDistro', 'XBStrapSQLite'],
     url='https://electrode.codes',
     author='electrodeyt',
